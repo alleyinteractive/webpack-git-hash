@@ -22,7 +22,7 @@ function WebpackGitHash(opts) {
   // Delete old versions?
   this.cleanup = opts.cleanup || false;
 
-  // Number of chars in hash
+  // Max number of chars in hash
   this.hashLength = opts.hashLength || 7;
 
   // Can specify a hash to skip or defaulto most recent on current Git branch
@@ -31,7 +31,10 @@ function WebpackGitHash(opts) {
   // Can specify output path
   this.outputPath = opts.outputPath || null;
 
+  // Pre-specify regexes for filename and chunkFilename
   this.regex = opts.regex || {};
+
+  this.updated = {};
 };
 
 /**
@@ -39,7 +42,7 @@ function WebpackGitHash(opts) {
  */
 WebpackGitHash.prototype.deleteObsoleteFile = function(filename) {
   if ((this.regex.filename && this.regex.filename.test(filename)) ||
-    (this.regex.chunkFilename && this.regex.chunkFilename.test(filename)) {
+    (this.regex.chunkFilename && this.regex.chunkFilename.test(filename))) {
     fs.unlink(path.join(this.outputPath, filename), function(err) {
       if (err) {
         throw err;
@@ -102,7 +105,7 @@ WebpackGitHash.prototype.doPlaceholder = function(key, original) {
   if (newString === original) {
     return false;
   }
-  this.regex[key] = this.regex[key] || this.buildRegex(newFilename, this.skipHash);
+  this.regex[key] = this.regex[key] || this.buildRegex(newString, this.skipHash);
   return newString;
 }
 
@@ -130,7 +133,7 @@ WebpackGitHash.prototype.apply = function(compiler) {
     this.outputPath = compiler.options.output.path;
   }
 
-  if (this.opts.cleanup === true &&
+  if (this.cleanup === true &&
     (this.updated.filename || this.updated.chunkFilename)) {
     compiler.plugin('done', this.cleanup);
   }

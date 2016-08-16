@@ -22,11 +22,15 @@ function WebpackGitHash(opts) {
   // Delete old versions?
   this.cleanup = opts.cleanup || false;
 
-  // Max number of chars in hash
-  this.hashLength = opts.hashLength || 7;
-
-  // Can specify a hash to skip or defaulto most recent on current Git branch
-  this.skipHash = opts.skipHash || this.getskipHash(this.hashLength);
+  // Can specify a specific hash/version
+  if (opts.skipHash) {
+    this.skipHash = opts.skipHash;
+    this.hashLength = this.skipHash.length;
+  } else {
+    // Or specify how many chars to use from the last commit hash
+    this.hashLength = opts.hashLength || 7;
+    this.skipHash = this.getSkipHash(this.hashLength);
+  }
 
   // Can specify output path
   this.outputPath = opts.outputPath || null;
@@ -73,7 +77,7 @@ WebpackGitHash.prototype.cleanupFiles = function() {
 /**
  * Get hash of last git commit
  */
-WebpackGitHash.prototype.getskipHash = function(length) {
+WebpackGitHash.prototype.getSkipHash = function(length) {
   var skipHash = child_process.execSync('git rev-parse --short=' + length + ' HEAD', { encoding: 'utf8' });
   return skipHash.trim();
 }

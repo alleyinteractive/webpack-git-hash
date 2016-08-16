@@ -1,46 +1,46 @@
 /**
- * Webpack plugin to cleanup chunks with a Git has OTHER THAN a specific hash
- *  Of no hash is specified, defaults to most recent
- *  To run from the command line, use:
- *  CLEANUPCHUNKS=true node ./CleanupChunks.js [<specify hash>]
+ * Webpack plugin for versioning bundles and chunks with the hash of the last Git commit
  */
 
 var fs = require('fs');
 var path = require('path');
-var getLastHash = require('./getLastHash');
-var isUnusedFilename = require('./isUnusedFilename');
-var doingCleanup = process.env.PRODUCTION === 'true' || process.env.CLEANUPCHUNKS === 'true';
+var child_process = require('child_process');
 
 /**
- * The module.
- *
- * @param string skipHash Hash to skip, or default to most recent
+ * Setup bindings and options
  */
-function CleanupChunks(skipHash) {
-  this.skipHash = skipHash || getLastHash();
-  // If no paths were sent, check command line arg for test path *relative* to this file
-  if (!this.skipHash) {
-    throw new Error('skipHash not found')
-  }
+function WebpackGitHash(opts) {
+  // Bind methods that need it
+  this.doPlaceholder = this.doPlaceholder.bind(this);
+  this.cleanup = this.cleanup.bind(this);
+  this.loopFiles = this.loopFiles.bind(this);
+  this.deleteObsoleteFile = this.deleteObsoleteFile.bind(this);
 
-  // Should only apply if not initialized by Webpack
-  this.staticPath = this.staticPath || path.join(__dirname, '../../static/js')
+  // Custom placeholder or default to [githash]
+  this.placeholder = opts.placeholder || '[githash]';
 
-  // Regex tests for filenames containing chunk.HASH.min.js
-  //  where HASH does not match the hash we want to skip
-  //  but is the same number of characters
-  this.regex = new RegExp('chunk\\.(?!' + this.skipHash + ')\\w{' + this.skipHash.length + '}\\.min\\.js');
+  // Delete old versions?
+  this.cleanup = opts.cleanup || false;
+
+  // Number of chars in hash
+  this.hashLength = opts.hashLength || 7;
+
+  // Can specify a hash to skip or defaulto most recent on current Git branch
+  this.skipHash = opts.skipHash || this.getskipHash(this.hashLength);
+
+  // Can specify output path
+  this.outputPath = opts.outputPath || null;
+
+  this.regex = opts.regex || {};
 };
 
 /**
  * Test if a file can be deleted, then delete it
  */
-CleanupChunks.prototype.deleteChunk = function(filename) {
-  if (this.regex.test(filename) || isUnusedFilename(filename)) {
-    if (!doingCleanup) {
-      console.log(filename + ' not deleted');
-    }
-    fs.unlink(path.join(this.staticPath, filename), function(err) {
+WebpackGitHash.prototype.deleteObsoleteFile = function(filename) {
+  if ((this.regex.filename && this.regex.filename.test(filename)) ||
+    (this.regex.chunkFilename && this.regex.chunkFilename.test(filename)) {
+    fs.unlink(path.join(this.outputPath, filename), function(err) {
       if (err) {
         throw err;
       }
@@ -52,44 +52,88 @@ CleanupChunks.prototype.deleteChunk = function(filename) {
 /**
  * Loop through files after reading folder contents
  */
-CleanupChunks.prototype.loopFiles = function(err, contents) {
+WebpackGitHash.prototype.loopFiles = function(err, contents) {
   if (err) {
     throw err;
   }
-  contents.forEach(this.deleteChunk.bind(this));
+  contents.forEach(this.deleteObsoleteFile);
 }
 
 /**
  * Delete static chunk JS files containing a hash other than the one we want to skip
  */
-CleanupChunks.prototype.init = function() {
-  if (!doingCleanup) {
-    console.log('Skipping cleanup process');
-    return;
+WebpackGitHash.prototype.cleanup = function() {
+  console.log('Cleaning up Webpack files; skipping hash ' + this.skipHash);
+  fs.readdir(this.outputPath, this.loopFiles);
+}
+
+/**
+ * Get hash of last git commit
+ */
+WebpackGitHash.prototype.getskipHash = function(length) {
+  var skipHash = child_process.execSync('git rev-parse --short=' + length + ' HEAD', { encoding: 'utf8' });
+  return skipHash.trim();
+}
+
+/**
+ * Turn processed filename into regex for later cleanup
+ */
+WebpackGitHash.prototype.buildRegex = function(template, hash) {
+  // Replace Webpack placeholders, e.g.
+  // '[name]-chunk.1234567.min.js' -> '\\w+-chunk.1234567.min.js'
+  var regex = template.replace(/\[\w+\]/gi, '\\w+');
+
+  // escape dots, e.g.
+  // '\\w+-chunk.1234567.js' -> '\\w+-chunk\\.1234567\\.js'
+  regex = regex.replace(/\./g, '\\.');
+
+  // replace hash
+  // '\\w+-chunk\\.1234567\\.min\\.js' -> '\\w+-chunk\\.(?!1234567)\\w{7}\\.min\\.js'
+  regex.replace(hash, '(?!' + hash + ')\\w{' + hash.length + '}');
+
+  return new RegExp(regex);
+}
+
+/**
+ * Atttempt to replace the placeholder string in a output string
+ */
+WebpackGitHash.prototype.doPlaceholder = function(key, original) {
+  var newString = original.replace(this.placeholder, this.skipHash);
+  if (newString === original) {
+    return false;
   }
-  console.log('Cleaning up chunk files; skipping hash ' + this.skipHash);
-  if (this.logWebpackPath) {
-    console.log(this.logWebpackPath);
-  }
-  fs.readdir(this.staticPath, this.loopFiles.bind(this));
+  this.regex[key] = this.regex[key] || this.buildRegex(newFilename, this.skipHash);
+  return newString;
 }
 
 /**
  * Hook into webpack plugin architecture
  */
-CleanupChunks.prototype.apply = function(compiler) {
-  this.staticPath = path.join(compiler.options.output.path, 'js');
-  this.logWebpackPath = 'Using webpack output path: ' + compiler.options.output.path;
-  compiler.plugin('done', this.init.bind(this));
+WebpackGitHash.prototype.apply = function(compiler) {
+
+  // Process filename and chunkFilename
+  this.updated.filename = compiler.options.output.filename ?
+    this.doPlaceholder('filename', compiler.options.output.filename) : false;
+  if (this.updated.filename) {
+    compiler.options.output.filename = this.updated.filename;
+    console.log('Changed output.filename to ' + compiler.options.output.filename);
+  }
+
+  this.updated.chunkFilename = compiler.options.output.chunkFilename ?
+    this.doPlaceholder('chunkFilename', compiler.options.output.chunkFilename) : false;
+  if (this.updated.chunkFilename) {
+    compiler.options.output.chunkFilename = this.updated.chunkFilename;
+    console.log('Changed output.chunkFilename to ' + compiler.options.output.chunkFilename);
+  }
+
+  if (!this.outputPath) {
+    this.outputPath = compiler.options.output.path;
+  }
+
+  if (this.opts.cleanup === true &&
+    (this.updated.filename || this.updated.chunkFilename)) {
+    compiler.plugin('done', this.cleanup);
+  }
 }
 
-/**
- * Check for command line testing
- */
-if (process.env.CLEANUPCHUNKS === 'true') {
-  var cleanup = process.argv.length >= 3 ?
-    new CleanupChunks(process.argv[2]) : new CleanupChunks();
-  cleanup.init();
-}
-
-module.exports = CleanupChunks;
+module.exports = WebpackGitHash;

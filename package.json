@@ -1,0 +1,23 @@
+{
+  "name": "webpack-git-hash",
+  "version": "1.0.0",
+  "description": "Webpack plugin for versioning bundles and chunks with the hash of the last Git commit",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alleyinteractive/webpack-git-hash.git"
+  },
+  "keywords": [
+    "webpack",
+    "versioning"
+  ],
+  "author": "Alley Interactive, Josh Kadis",
+  "license": "GPL-2.0",
+  "bugs": {
+    "url": "https://github.com/alleyinteractive/webpack-git-hash/issues"
+  },
+  "homepage": "https://github.com/alleyinteractive/webpack-git-hash#readme"
+}

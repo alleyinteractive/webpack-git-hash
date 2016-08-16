@@ -12,7 +12,7 @@ var child_process = require('child_process');
 function WebpackGitHash(opts) {
   // Bind methods that need it
   this.doPlaceholder = this.doPlaceholder.bind(this);
-  this.cleanup = this.cleanup.bind(this);
+  this.cleanupFiles = this.cleanupFiles.bind(this);
   this.loopFiles = this.loopFiles.bind(this);
   this.deleteObsoleteFile = this.deleteObsoleteFile.bind(this);
 
@@ -65,8 +65,8 @@ WebpackGitHash.prototype.loopFiles = function(err, contents) {
 /**
  * Delete static chunk JS files containing a hash other than the one we want to skip
  */
-WebpackGitHash.prototype.cleanup = function() {
-  console.log('Cleaning up Webpack files; skipping hash ' + this.skipHash);
+WebpackGitHash.prototype.cleanupFiles = function() {
+  console.log('Cleaning up Webpack files; skipping ' + this.placeholder + ': ' + this.skipHash);
   fs.readdir(this.outputPath, this.loopFiles);
 }
 
@@ -92,7 +92,7 @@ WebpackGitHash.prototype.buildRegex = function(template, hash) {
 
   // replace hash
   // '\\w+-chunk\\.1234567\\.min\\.js' -> '\\w+-chunk\\.(?!1234567)\\w{7}\\.min\\.js'
-  regex.replace(hash, '(?!' + hash + ')\\w{' + hash.length + '}');
+  regex = regex.replace(hash, '(?!' + hash + ')\\w{' + hash.length + '}');
 
   return new RegExp(regex);
 }
@@ -135,7 +135,7 @@ WebpackGitHash.prototype.apply = function(compiler) {
 
   if (this.cleanup === true &&
     (this.updated.filename || this.updated.chunkFilename)) {
-    compiler.plugin('done', this.cleanup);
+    compiler.plugin('done', this.cleanupFiles);
   }
 }
 

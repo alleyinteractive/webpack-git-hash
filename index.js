@@ -40,7 +40,7 @@ function WebpackGitHash(opts) {
 
   // Optional callback function that receives the hash and list of deleted files
   this.callback = opts.callback || null;
-  if (typeof this.callback ==== 'function') {
+  if (typeof this.callback === 'function') {
     this.callback = this.callback.bind(this);
   }
 

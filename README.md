@@ -44,6 +44,13 @@ bundle.lk8adsm.js -> would be deleted
 bundle.987aas880m.js -> would *NOT* be deleted
 ```
 
+#### `callback`
+Optional callback function that runs on Webpack's `done` [step](https://webpack.github.io/docs/plugins.html#done). It receives three arguments:
+
+1. `hash` The hash used as the latest version by the plugin (_not_ Webpack's `[hash]`).
+1. `deletedFiles` Array of any filenames (without path) deleted during cleanup; this might be an empty array.
+1. `stats` Webpack [stats](https://webpack.github.io/docs/node.js-api.html#stats) object from the latest compilation
+
 #### `skipHash`
 
 Defaults to hash of most recent Git commit on the current branch. This is the unique string that will be used as the version identifier, and will be "skipped" if the plugin is set to delete old versions when Webpack is finished. See `cleanup` above.

@@ -38,7 +38,16 @@ function WebpackGitHash(opts) {
   // Pre-specify regexes for filename and chunkFilename
   this.regex = opts.regex || {};
 
+  // Optional callback function that receives the hash and list of deleted files
+  this.callback = opts.callback || null;
+  if (typeof this.callback === 'function') {
+    this.callback = this.callback.bind(this);
+  }
+
+  // Config filled in later
   this.updated = {};
+  this.deletedFiles = [];
+  this.stats = null;
 };
 
 /**
@@ -47,12 +56,10 @@ function WebpackGitHash(opts) {
 WebpackGitHash.prototype.deleteObsoleteFile = function(filename) {
   if ((this.regex.filename && this.regex.filename.test(filename)) ||
     (this.regex.chunkFilename && this.regex.chunkFilename.test(filename))) {
-    fs.unlink(path.join(this.outputPath, filename), function(err) {
-      if (err) {
-        throw err;
-      }
-      console.log('Deleted ' + filename);
-    })
+    // delete synchronously so we know when loopFiles() is complete
+    fs.unlinkSync(path.join(this.outputPath, filename));
+    console.log('Deleted ' + filename);
+    this.deletedFiles.push(filename);
   }
 }
 
@@ -64,13 +71,29 @@ WebpackGitHash.prototype.loopFiles = function(err, contents) {
     throw err;
   }
   contents.forEach(this.deleteObsoleteFile);
+  this.doCallback();
+}
+
+/**
+ * Callback function if one exists
+ */
+WebpackGitHash.prototype.doCallback = function(stats) {
+  // Webpack stats passed directly, or stored earlier, or null
+  stats = stats || this.stats;
+  if (typeof this.callback === 'function') {
+    this.callback(this.skipHash, this.deletedFiles, stats);
+  }
 }
 
 /**
  * Delete static chunk JS files containing a hash other than the one we want to skip
  */
-WebpackGitHash.prototype.cleanupFiles = function() {
+WebpackGitHash.prototype.cleanupFiles = function(stats) {
   console.log('Cleaning up Webpack files; skipping ' + this.placeholder + ': ' + this.skipHash);
+  // Save Webpack stats for later
+  if (stats) {
+    this.stats = stats;
+  }
   fs.readdir(this.outputPath, this.loopFiles);
 }
 
@@ -140,6 +163,8 @@ WebpackGitHash.prototype.apply = function(compiler) {
   if (this.cleanup === true &&
     (this.updated.filename || this.updated.chunkFilename)) {
     compiler.plugin('done', this.cleanupFiles);
+  } else {
+    compiler.plugin('done', this.doCallback);
   }
 }
 

@@ -12,7 +12,7 @@ var child_process = require('child_process');
 function WebpackGitHash(opts) {
   // Bind methods that need it
   this.doPlaceholder = this.doPlaceholder.bind(this);
-  this.cleanup = this.cleanup.bind(this);
+  this.cleanupFiles = this.cleanupFiles.bind(this);
   this.loopFiles = this.loopFiles.bind(this);
   this.deleteObsoleteFile = this.deleteObsoleteFile.bind(this);
 
@@ -22,16 +22,23 @@ function WebpackGitHash(opts) {
   // Delete old versions?
   this.cleanup = opts.cleanup || false;
 
-  // Number of chars in hash
-  this.hashLength = opts.hashLength || 7;
-
-  // Can specify a hash to skip or defaulto most recent on current Git branch
-  this.skipHash = opts.skipHash || this.getskipHash(this.hashLength);
+  // Can specify a specific hash/version
+  if (opts.skipHash) {
+    this.skipHash = opts.skipHash;
+    this.hashLength = this.skipHash.length;
+  } else {
+    // Or specify how many chars to use from the last commit hash
+    this.hashLength = opts.hashLength || 7;
+    this.skipHash = this.getSkipHash(this.hashLength);
+  }
 
   // Can specify output path
   this.outputPath = opts.outputPath || null;
 
+  // Pre-specify regexes for filename and chunkFilename
   this.regex = opts.regex || {};
+
+  this.updated = {};
 };
 
 /**
@@ -39,7 +46,7 @@ function WebpackGitHash(opts) {
  */
 WebpackGitHash.prototype.deleteObsoleteFile = function(filename) {
   if ((this.regex.filename && this.regex.filename.test(filename)) ||
-    (this.regex.chunkFilename && this.regex.chunkFilename.test(filename)) {
+    (this.regex.chunkFilename && this.regex.chunkFilename.test(filename))) {
     fs.unlink(path.join(this.outputPath, filename), function(err) {
       if (err) {
         throw err;
@@ -62,15 +69,15 @@ WebpackGitHash.prototype.loopFiles = function(err, contents) {
 /**
  * Delete static chunk JS files containing a hash other than the one we want to skip
  */
-WebpackGitHash.prototype.cleanup = function() {
-  console.log('Cleaning up Webpack files; skipping hash ' + this.skipHash);
+WebpackGitHash.prototype.cleanupFiles = function() {
+  console.log('Cleaning up Webpack files; skipping ' + this.placeholder + ': ' + this.skipHash);
   fs.readdir(this.outputPath, this.loopFiles);
 }
 
 /**
  * Get hash of last git commit
  */
-WebpackGitHash.prototype.getskipHash = function(length) {
+WebpackGitHash.prototype.getSkipHash = function(length) {
   var skipHash = child_process.execSync('git rev-parse --short=' + length + ' HEAD', { encoding: 'utf8' });
   return skipHash.trim();
 }
@@ -89,7 +96,7 @@ WebpackGitHash.prototype.buildRegex = function(template, hash) {
 
   // replace hash
   // '\\w+-chunk\\.1234567\\.min\\.js' -> '\\w+-chunk\\.(?!1234567)\\w{7}\\.min\\.js'
-  regex.replace(hash, '(?!' + hash + ')\\w{' + hash.length + '}');
+  regex = regex.replace(hash, '(?!' + hash + ')\\w{' + hash.length + '}');
 
   return new RegExp(regex);
 }
@@ -102,7 +109,7 @@ WebpackGitHash.prototype.doPlaceholder = function(key, original) {
   if (newString === original) {
     return false;
   }
-  this.regex[key] = this.regex[key] || this.buildRegex(newFilename, this.skipHash);
+  this.regex[key] = this.regex[key] || this.buildRegex(newString, this.skipHash);
   return newString;
 }
 
@@ -130,9 +137,9 @@ WebpackGitHash.prototype.apply = function(compiler) {
     this.outputPath = compiler.options.output.path;
   }
 
-  if (this.opts.cleanup === true &&
+  if (this.cleanup === true &&
     (this.updated.filename || this.updated.chunkFilename)) {
-    compiler.plugin('done', this.cleanup);
+    compiler.plugin('done', this.cleanupFiles);
   }
 }
 

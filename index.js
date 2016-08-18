@@ -111,9 +111,13 @@ WebpackGitHash.prototype.getSkipHash = function(length) {
  * Turn processed filename into regex for later cleanup
  */
 WebpackGitHash.prototype.buildRegex = function(template, hash) {
+  // discard any prepended directories
+  var parts = template.split('/');
+  var regex = parts.pop();
+
   // Replace Webpack placeholders, e.g.
-  // '[name]-chunk.1234567.min.js' -> '\\w+-chunk.1234567.min.js'
-  var regex = template.replace(/\[\w+\]/gi, '\\w+');
+  // '[name]-chunk.1234567.min.js' -> '[-_\\w]+-chunk.1234567.min.js'
+  regex = regex.replace(/\[\w+\]/gi, '[-_\\w]+');
 
   // escape dots, e.g.
   // '\\w+-chunk.1234567.js' -> '\\w+-chunk\\.1234567\\.js'

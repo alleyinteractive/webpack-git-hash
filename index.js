@@ -16,6 +16,8 @@ function WebpackGitHash(opts) {
   this.loopFiles = this.loopFiles.bind(this);
   this.deleteObsoleteFile = this.deleteObsoleteFile.bind(this);
 
+  opts = opts || {};
+
   // Custom placeholder or default to [githash]
   this.placeholder = opts.placeholder || '[githash]';
 

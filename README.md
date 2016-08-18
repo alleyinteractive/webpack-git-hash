@@ -74,6 +74,21 @@ global-chunk.1234abc.min.js -> this would be deleted
 ```
 If the default regex isn't working for you, you can specify a new `RegExp` in `regex.filename` and/or `regex.chunkFilename`. Note that there's not (yet) a way to dynamically skip the current Git hash (the `(?!abcd123)` part in the example). So if you use this option, you'll need to use the `skipHash` option also.
 
-## Dependencies
+## Post-compilation updates
 
-**None.**
+Here's a simple example of how to use the `callback` option to edit a `<script>` tag to load the load the latest versionof a file.
+
+```
+module.exports = {
+	plugins: [
+		new WebpackGitHash({
+			cleanup: true,
+			callback: function(versionHash) {
+				var indexHtml = fs.readFileSync('./index.html', 'utf8');
+				indexHtml = indexHtml.replace(/src="\/static\/app-bundle\.\w+\.js/, 'src="/static/app-bundle.' + versionHash + '.js');
+				fs.writeFileSync('./index.html', indexHtml);
+			}
+		})
+	]
+}
+```

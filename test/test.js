@@ -84,12 +84,8 @@ describe('webpack-git-hash test suite', function() {
   it('should call the callback function', function() {
     var testVar = 0;
     function testCallback() {
-      console.log('calling!')
       testVar++;
     };
-    var testCleanup = new WebPackGitHash({
-      callback: testCallback
-    });
     var mockCompiler = {
       options: {
         output: false
@@ -99,6 +95,10 @@ describe('webpack-git-hash test suite', function() {
       }
     };
 
+    // Create tester and trigger the callback
+    var testCleanup = new WebPackGitHash({
+      callback: testCallback
+    });
     testCleanup.apply(mockCompiler);
     expect(testVar).to.equal(1);
   });

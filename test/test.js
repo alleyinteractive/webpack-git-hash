@@ -81,4 +81,26 @@ describe('webpack-git-hash test suite', function() {
     }, 500);
   });
 
+  it('should call the callback function', function() {
+    var testVar = 0;
+    function testCallback() {
+      testVar++;
+    };
+    var mockCompiler = {
+      options: {
+        output: false
+      },
+      plugin: function(evt, callback) {
+        callback();
+      }
+    };
+
+    // Create tester and trigger the callback
+    var testCleanup = new WebPackGitHash({
+      callback: testCallback
+    });
+    testCleanup.apply(mockCompiler);
+    expect(testVar).to.equal(1);
+  });
+
 });

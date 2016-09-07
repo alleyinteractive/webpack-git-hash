@@ -24,6 +24,11 @@ function WebpackGitHash(opts) {
   // Delete old versions?
   this.cleanup = opts.cleanup || false;
 
+  // If not cleaning up, bind the callback directly
+  if (!this.cleanup) {
+    this.doCallback = this.doCallback.bind(this);
+  }
+
   // Can specify a specific hash/version
   if (opts.skipHash) {
     this.skipHash = opts.skipHash;

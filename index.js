@@ -15,6 +15,7 @@ function WebpackGitHash(opts) {
   this.cleanupFiles = this.cleanupFiles.bind(this);
   this.loopFiles = this.loopFiles.bind(this);
   this.deleteObsoleteFile = this.deleteObsoleteFile.bind(this);
+  this.loopAssets = this.loopAssets.bind(this);
 
   opts = opts || {};
 
@@ -65,7 +66,7 @@ WebpackGitHash.prototype.deleteObsoleteFile = function(filename) {
     (this.regex.chunkFilename && this.regex.chunkFilename.test(filename))) {
     // delete synchronously so we know when loopFiles() is complete
     fs.unlinkSync(path.join(this.outputPath, filename));
-    console.log('Deleted ' + filename);
+    console.log('WebpackGitHash: Deleted ' + filename);
     this.deletedFiles.push(filename);
   }
 }
@@ -96,7 +97,7 @@ WebpackGitHash.prototype.doCallback = function(stats) {
  * Delete static chunk JS files containing a hash other than the one we want to skip
  */
 WebpackGitHash.prototype.cleanupFiles = function(stats) {
-  console.log('Cleaning up Webpack files; skipping ' + this.placeholder + ': ' + this.skipHash);
+  console.log('WebpackGitHash: Cleaning up Webpack files; skipping ' + this.placeholder + ': ' + this.skipHash);
   // Save Webpack stats for later
   if (stats) {
     this.stats = stats;
@@ -136,7 +137,7 @@ WebpackGitHash.prototype.buildRegex = function(template, hash) {
 }
 
 /**
- * Atttempt to replace the placeholder string in a output string
+ * Attempt to replace the placeholder string in a output string
  */
 WebpackGitHash.prototype.doPlaceholder = function(key, original) {
   var newString = original.replace(this.placeholder, this.skipHash);
@@ -148,28 +149,30 @@ WebpackGitHash.prototype.doPlaceholder = function(key, original) {
 }
 
 /**
+ * Loop through assets just before they are emitted to replace placeholder
+ */
+WebpackGitHash.prototype.loopAssets = function(compilation, callback) {
+  Object.keys(compilation.assets).forEach(function(assetName) {
+    var hashedAssetName = this.doPlaceholder('assets', assetName);
+    if (hashedAssetName) {
+      compilation.assets[hashedAssetName] = compilation.assets[assetName];
+      delete compilation.assets[assetName];
+    }
+    console.log('WebpackGitHash: hash added to ' + assetName);
+  }.bind(this));
+  callback();
+}
+
+/**
  * Hook into webpack plugin architecture
  */
 WebpackGitHash.prototype.apply = function(compiler) {
 
-  // Process filename and chunkFilename
-  this.updated.filename = compiler.options.output.filename ?
-    this.doPlaceholder('filename', compiler.options.output.filename) : false;
-  if (this.updated.filename) {
-    compiler.options.output.filename = this.updated.filename;
-    console.log('Changed output.filename to ' + compiler.options.output.filename);
-  }
-
-  this.updated.chunkFilename = compiler.options.output.chunkFilename ?
-    this.doPlaceholder('chunkFilename', compiler.options.output.chunkFilename) : false;
-  if (this.updated.chunkFilename) {
-    compiler.options.output.chunkFilename = this.updated.chunkFilename;
-    console.log('Changed output.chunkFilename to ' + compiler.options.output.chunkFilename);
-  }
-
   if (!this.outputPath) {
     this.outputPath = compiler.options.output.path;
   }
+
+  compiler.plugin('emit', this.loopAssets);
 
   if (this.cleanup === true &&
     (this.updated.filename || this.updated.chunkFilename)) {

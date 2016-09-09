@@ -65,9 +65,9 @@ describe('webpack-git-hash test suite', function() {
 
     // Cleanup files and test the result
     var replacedFilename = test.replaceAsset(compilation, filename);
-    expect(test.regex.length).to.equal(1);
-    expect(test.regex[0].test(filename)).to.equal(false);
-    expect(test.regex[0].test(oldFilename)).to.equal(true);
+    expect(test.regex).to.have.property(filename);
+    expect(test.regex[filename].test(filename)).to.equal(false);
+    expect(test.regex[filename].test(oldFilename)).to.equal(true);
     expect(compilation.assets).to.have.property('file.abcdefg.min.js').and.to.equal('test');
   });
 

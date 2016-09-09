@@ -45,7 +45,7 @@ function WebpackGitHash(opts) {
   this.outputPath = opts.outputPath || null;
 
   // Pre-specify regexes for filename and chunkFilename
-  this.regex = opts.regex || [];
+  this.regex = opts.regex || {};
 
   // Optional callback function that receives the hash and list of deleted files
   this.callback = opts.callback || null;
@@ -63,8 +63,10 @@ function WebpackGitHash(opts) {
  * Test if a file can be deleted, then delete it
  */
 WebpackGitHash.prototype.deleteObsoleteFile = function(file) {
-  for (var i = 0; i < this.regex.length; i++) {
-    var currentRegex = this.regex[i];
+  var regexKeys = Object.keys(this.regex);
+
+  for (var i = 0; i < regexKeys.length; i++) {
+    var currentRegex = this.regex[regexKeys[i]];
     var testPath = file.path.replace(this.outputPath, '');
 
     if (currentRegex.test(testPath)) {
@@ -84,7 +86,7 @@ WebpackGitHash.prototype.deleteObsoleteFile = function(file) {
  */
 WebpackGitHash.prototype.populateRegex = function(assetName) {
   if (!this.regex.hasOwnProperty(assetName)) {
-    this.regex = this.regex.concat(this.buildRegex(assetName, this.skipHash));
+    this.regex[assetName] = this.buildRegex(assetName, this.skipHash);
   }
 }
 
@@ -173,7 +175,7 @@ WebpackGitHash.prototype.loopAssets = function(compilation, callback) {
   var assetNames = Object.keys(compilation.assets);
 
   for (var i = 0; i < assetNames.length; i++) {
-    this.replaceAsset(compilation, compilation.assets[assetName[i]]);
+    this.replaceAsset(compilation, assetNames[i]);
   }
 
   if (this.cleanup) {

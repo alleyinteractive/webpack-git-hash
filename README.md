@@ -72,7 +72,13 @@ abcd123 -> the latest Git hash
 filename-chunk\.(?!abcd123)\w{7}\.min\.js/ -> the default regex
 filename-chunk.1234abc.min.js -> this would be deleted
 ```
-If the default regex isn't working for you, you can initialize the `regex` array option with an additional `new RegExp()` via `regex: [new RegExp('/your-regex/')]`. Note that there's not (yet) a way to dynamically skip the current Git hash (the `(?!abcd123)` part in the example). So if you use this option, you'll need to use the `skipHash` option also. Also note that your specified regex will not override the built-in regex logic, but simply add to it.
+If the default regex isn't working for you, you can initialize the `regex` array option with an additional `new RegExp()` via:
+```
+regex: {
+	myregex: new RegExp('/my-regex/')
+}
+```
+The property name you use for your custom regex can be arbitrary, as it is only necessary to ensure we don't build any regex more than once while the plugin is processing. Note that there's not (yet) a way to dynamically skip the current Git hash (the `(?!abcd123)` part in the example). So if you use this option, you'll need to use the `skipHash` option also. Also note that your specified regex will not override the built-in regex logic, it will simply add to it.
 
 ## Post-compilation updates
 

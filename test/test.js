@@ -58,8 +58,11 @@ describe('webpack-git-hash test suite', function() {
     var filename = 'file.' + test.placeholder + '.min.js';
     var oldFilename = 'file.1234567.min.js';
     var compilation = {
-      assets: {}
-    }
+      assets: {},
+      chunks: {
+        files: [filename],
+      },
+    };
 
     compilation.assets[filename] = 'test';
 

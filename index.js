@@ -107,6 +107,18 @@ WebpackGitHash.prototype.cleanupFiles = function() {
 WebpackGitHash.prototype.replaceAsset = function(compilation, assetName) {
   var hashedAssetName = this.doPlaceholder(assetName);
 
+  for (var i = 0; i < compilation.chunks.length; i++) {
+    var chunk = compilation.chunks[i];
+
+    for (var j = 0; j < chunk.files.length; j++) {
+      var file = chunk.files[j];
+
+      if (assetName === file) {
+        compilation.chunks[i].files[j] = hashedAssetName;
+      }
+    };
+  };
+
   if (hashedAssetName) {
     compilation.assets[hashedAssetName] = compilation.assets[assetName];
     delete compilation.assets[assetName];

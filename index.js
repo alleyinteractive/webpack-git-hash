@@ -12,7 +12,8 @@ var child_process = require('child_process');
 function WebpackGitHash(opts) {
   // Bind methods that need it
   this.doPlaceholder = this.doPlaceholder.bind(this);
-  // this.cleanupFiles = this.cleanupFiles.bind(this);
+  this.cleanupFiles = this.cleanupFiles.bind(this);
+  this.replaceAsset = this.replaceAsset.bind(this);
   this.populateRegex = this.populateRegex.bind(this);
   this.deleteObsoleteFile = this.deleteObsoleteFile.bind(this);
   this.loopAssets = this.loopAssets.bind(this);
@@ -44,7 +45,7 @@ function WebpackGitHash(opts) {
   this.outputPath = opts.outputPath || null;
 
   // Pre-specify regexes for filename and chunkFilename
-  this.regex = opts.regex || {};
+  this.regex = opts.regex || [];
 
   // Optional callback function that receives the hash and list of deleted files
   this.callback = opts.callback || null;
@@ -62,10 +63,11 @@ function WebpackGitHash(opts) {
  * Test if a file can be deleted, then delete it
  */
 WebpackGitHash.prototype.deleteObsoleteFile = function(file) {
-  Object.keys(this.regex).forEach(function(assetName) {
-    var testPath = file.path.replace(this.outputPath + '/', '');
+  for (var i = 0; i < this.regex.length; i++) {
+    var currentRegex = this.regex[i];
+    var testPath = file.path.replace(this.outputPath, '');
 
-    if (this.regex[assetName].test(testPath)) {
+    if (currentRegex.test(testPath)) {
       fs.unlink(file.path, function(err) {
         if (err) {
           console.log(err);
@@ -74,13 +76,42 @@ WebpackGitHash.prototype.deleteObsoleteFile = function(file) {
       });
       this.deletedFiles.push(file.path);
     }
-  }.bind(this));
+  }
 }
 
+/**
+ * Add a regex for a particular asset
+ */
 WebpackGitHash.prototype.populateRegex = function(assetName) {
   if (!this.regex.hasOwnProperty(assetName)) {
-    this.regex[assetName] = this.buildRegex(assetName, this.skipHash);
+    this.regex = this.regex.concat(this.buildRegex(assetName, this.skipHash));
   }
+}
+
+/**
+ * Remove files with outdated hash
+ */
+WebpackGitHash.prototype.cleanupFiles = function() {
+  console.log('WebpackGitHash: Cleaning up files; skipping hash: ' + this.skipHash);
+  fs.walk(this.outputPath)
+    .on('data', function(file) {
+      this.deleteObsoleteFile(file);
+    }.bind(this));
+}
+
+/**
+ * Loop through assets, replace placeholder, and generate regex
+ */
+WebpackGitHash.prototype.replaceAsset = function(compilation, assetName) {
+  var hashedAssetName = this.doPlaceholder(assetName);
+
+  if (hashedAssetName) {
+    compilation.assets[hashedAssetName] = compilation.assets[assetName];
+    delete compilation.assets[assetName];
+  }
+  console.log('WebpackGitHash: hash added to ' + assetName);
+
+  this.populateRegex(assetName);
 }
 
 /**
@@ -116,8 +147,12 @@ WebpackGitHash.prototype.buildRegex = function(template, hash) {
   // '\\w+-chunk\\.1234567\\.min\\.js' -> '\\w+-chunk\\.(?!1234567)\\w{7}\\.min\\.js'
   regex = regex.replace(this.placeholder, '(?!' + hash + ')\\w{' + hash.length + '}');
 
+  // Filename must come at end of string to avoid `filename.css` matching `filename.css.map`
+  // Add optional forward slash
+  regex = '(/)?' + regex + '$'
+
   // String must be at the end of the filename (to prevent sourcemaps from matchin too many regexes)
-  return new RegExp(regex + '$');
+  return new RegExp(regex);
 }
 
 /**
@@ -135,23 +170,17 @@ WebpackGitHash.prototype.doPlaceholder = function(original) {
  * Loop through assets just before they are emitted to replace placeholder
  */
 WebpackGitHash.prototype.loopAssets = function(compilation, callback) {
-  Object.keys(compilation.assets).forEach(function(assetName) {
-    var hashedAssetName = this.doPlaceholder(assetName);
-    if (hashedAssetName) {
-      compilation.assets[hashedAssetName] = compilation.assets[assetName];
-      delete compilation.assets[assetName];
-    }
-    console.log('WebpackGitHash: hash added to ' + assetName);
-    this.populateRegex(assetName);
-  }.bind(this));
+  var assetNames = Object.keys(compilation.assets);
+
+  for (var i = 0; i < assetNames.length; i++) {
+    this.replaceAsset(compilation, compilation.assets[assetName[i]]);
+  }
 
   if (this.cleanup) {
-    console.log('WebpackGitHash: Cleaning up files; skipping hash: ' + this.skipHash);
-    fs.walk(this.outputPath)
-      .on('data', function(file) {
-        this.deleteObsoleteFile(file);
-      }.bind(this));
+    this.cleanupFiles();
   }
+
+  // Exit 'emit' hook
   callback();
 }
 

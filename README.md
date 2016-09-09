@@ -65,14 +65,14 @@ Defaults to `output.path` in your Webpack config. You can change that here thoug
 
 #### `regex`
 
-If you use the `cleanup` option to delete old verions, the plugin attempts to create regular expressions to match the filenames, based on the original Webpack config. For instance:
+If you use the `cleanup` option to delete old verions, the plugin attempts to create regular expressions to match the filenames, based on assets Webpack is generating that include the configured placeholder. This will happen after all other placeholders have been replaced. For instance:
 ```
-[name]-chunk.[githash].min.js -> the config's output.chunkFilename
+filename-chunk.[githash].min.js -> the config's output.chunkFilename
 abcd123 -> the latest Git hash
-/\w+-chunk\.(?!abcd123)\w{7}\.min\.js/ -> the default regex
-global-chunk.1234abc.min.js -> this would be deleted
+filename-chunk\.(?!abcd123)\w{7}\.min\.js/ -> the default regex
+filename-chunk.1234abc.min.js -> this would be deleted
 ```
-If the default regex isn't working for you, you can specify a new `RegExp` in `regex.filename` and/or `regex.chunkFilename`. Note that there's not (yet) a way to dynamically skip the current Git hash (the `(?!abcd123)` part in the example). So if you use this option, you'll need to use the `skipHash` option also.
+If the default regex isn't working for you, you can initialize the `regex` array option with an additional `new RegExp()` via `regex: [new RegExp('/your-regex/')]`. Note that there's not (yet) a way to dynamically skip the current Git hash (the `(?!abcd123)` part in the example). So if you use this option, you'll need to use the `skipHash` option also. Also note that your specified regex will not override the built-in regex logic, but simply add to it.
 
 ## Post-compilation updates
 

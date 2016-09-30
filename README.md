@@ -33,9 +33,11 @@ module.exports = {
 You can pass these options when you instantiate the plugin in your `plugins` array:
 
 #### `placeholder`
-Defaults to `[githash]`. Pass another string to use as the placeholder in filenames.
+
+Defaults to `"[githash]"`. Pass another string, including surrounding brackets, to use as the placeholder in filenames.
 
 #### `cleanup`
+
 Defaults to `false`. Pass `true` to delete old versions after Webpack is finished. This works by searching for files in the output directory that match the same pattern as the files that were just compiled, except for the hash. Note the the number of characters in the hash must match. For example:
 
 ```
@@ -45,6 +47,7 @@ bundle.987aas880m.js -> would *NOT* be deleted
 ```
 
 #### `callback`
+
 Optional callback function that runs on Webpack's `done` [step](https://webpack.github.io/docs/plugins.html#done). It receives three arguments:
 
 1. `hash` The hash used as the latest version by the plugin (_not_ Webpack's `[hash]`).
@@ -53,7 +56,7 @@ Optional callback function that runs on Webpack's `done` [step](https://webpack.
 
 #### `skipHash`
 
-Defaults to hash of most recent Git commit on the current branch. This is the unique string that will be used as the version identifier, and will be "skipped" if the plugin is set to delete old versions when Webpack is finished. See `cleanup` above.
+This is the unique string that will be used as the version identifier, and will be "skipped" if the plugin is set to delete old versions when Webpack is finished. Defaults to hash of most recent Git commit on the current branch. See `cleanup` above.
 
 #### `hashLength`
 
@@ -82,7 +85,7 @@ The property name you use for your custom regex can be arbitrary, as it is only 
 
 ## Post-compilation updates
 
-Here's a simple example of how to use the `callback` option to edit a `<script>` tag to load the load the latest versionof a file.
+Here's a simple example of how to use the `callback` option to edit a `<script>` tag for the latest version hash.
 
 ```
 module.exports = {
@@ -90,8 +93,13 @@ module.exports = {
 		new WebpackGitHash({
 			cleanup: true,
 			callback: function(versionHash) {
+				// get contents of index.html
 				var indexHtml = fs.readFileSync('./index.html', 'utf8');
+
+				// replace app-bundle.{old version}.js with app-bundle.{new version}.js in src attribute
 				indexHtml = indexHtml.replace(/src="\/static\/app-bundle\.\w+\.js/, 'src="/static/app-bundle.' + versionHash + '.js');
+
+				// update contents of index.html
 				fs.writeFileSync('./index.html', indexHtml);
 			}
 		})

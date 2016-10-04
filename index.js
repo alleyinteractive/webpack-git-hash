@@ -134,9 +134,8 @@ WebpackGitHash.prototype.replaceAsset = function(compilation, assetName) {
  */
 WebpackGitHash.prototype.doCallback = function(stats) {
   // Webpack stats passed directly, or stored earlier, or null
-  stats = stats || this.stats;
   if (typeof this.callback === 'function') {
-    this.callback(this.skipHash, this.deletedFiles, stats);
+    this.callback(this.skipHash, this.deletedFiles, stats || this.stats);
   }
 }
 

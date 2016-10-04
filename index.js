@@ -82,7 +82,7 @@ WebpackGitHash.prototype.deleteObsoleteFile = function(file) {
  */
 WebpackGitHash.prototype.populateRegex = function(assetName) {
   // Sourcemap extension is included in regex
-  assetName = assetName.replace('.map', '');
+  assetName = assetName.replace(/\.map$/, '');
 
   // Add regex only if it doesn't already exist in cache
   if (!this.regex.hasOwnProperty(assetName)) {
@@ -126,6 +126,8 @@ WebpackGitHash.prototype.replaceAsset = function(compilation, assetName) {
     console.log('WebpackGitHash: hash added to ' + assetName);
 
     this.populateRegex(assetName);
+  } else {
+    console.log('WebpackGitHash: skipped ' + assetName);
   }
 }
 
@@ -162,7 +164,7 @@ WebpackGitHash.prototype.buildRegex = function(template, hash) {
   regex = regex.replace(this.placeholder, '(?!' + hash + ')\\w{' + hash.length + '}');
 
   // remove sourcemap extension, use in regex instead
-  regex = regex.replace('.map', '');
+  regex = regex.replace(/\.map$/, '');
   regex = regex + '(\\.map)?$';
 
   // Add optional forward slash

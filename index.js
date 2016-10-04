@@ -17,6 +17,7 @@ function WebpackGitHash(opts) {
   this.populateRegex = this.populateRegex.bind(this);
   this.deleteObsoleteFile = this.deleteObsoleteFile.bind(this);
   this.loopAssets = this.loopAssets.bind(this);
+  this.doCallback = this.doCallback.bind(this);
 
   opts = opts || {};
 
@@ -25,11 +26,6 @@ function WebpackGitHash(opts) {
 
   // Delete old versions?
   this.cleanup = opts.cleanup || false;
-
-  // If not cleaning up, bind the callback directly
-  if (!this.cleanup) {
-    this.doCallback = this.doCallback.bind(this);
-  }
 
   // Can specify a specific hash/version
   if (opts.skipHash) {
@@ -67,7 +63,7 @@ WebpackGitHash.prototype.deleteObsoleteFile = function(file) {
 
   for (var i = 0; i < regexKeys.length; i++) {
     var currentRegex = this.regex[regexKeys[i]];
-    var testPath = file.path.replace(this.outputPath, '');
+    var testPath = file.path;
 
     if (currentRegex.test(testPath)) {
       fs.unlink(file.path, function(err) {
@@ -85,6 +81,10 @@ WebpackGitHash.prototype.deleteObsoleteFile = function(file) {
  * Add a regex for a particular asset
  */
 WebpackGitHash.prototype.populateRegex = function(assetName) {
+  // Sourcemap extension is included in regex
+  assetName = assetName.replace('.map', '');
+
+  // Add regex only if it doesn't already exist in cache
   if (!this.regex.hasOwnProperty(assetName)) {
     this.regex[assetName] = this.buildRegex(assetName, this.skipHash);
   }
@@ -122,10 +122,11 @@ WebpackGitHash.prototype.replaceAsset = function(compilation, assetName) {
   if (hashedAssetName) {
     compilation.assets[hashedAssetName] = compilation.assets[assetName];
     delete compilation.assets[assetName];
-  }
-  console.log('WebpackGitHash: hash added to ' + assetName);
 
-  this.populateRegex(assetName);
+    console.log('WebpackGitHash: hash added to ' + assetName);
+
+    this.populateRegex(assetName);
+  }
 }
 
 /**
@@ -161,9 +162,12 @@ WebpackGitHash.prototype.buildRegex = function(template, hash) {
   // '\\w+-chunk\\.1234567\\.min\\.js' -> '\\w+-chunk\\.(?!1234567)\\w{7}\\.min\\.js'
   regex = regex.replace(this.placeholder, '(?!' + hash + ')\\w{' + hash.length + '}');
 
-  // Filename must come at end of string to avoid `filename.css` matching `filename.css.map`
+  // remove sourcemap extension, use in regex instead
+  regex = regex.replace('.map', '');
+  regex = regex + '(\\.map)?$';
+
   // Add optional forward slash
-  regex = '(/)?' + regex + '$'
+  regex = '(/)?' + regex;
 
   // String must be at the end of the filename (to prevent sourcemaps from matchin too many regexes)
   return new RegExp(regex);

@@ -12,11 +12,12 @@ var child_process = require('child_process');
 function WebpackGitHash(opts) {
   // Bind methods that need it
   this.doPlaceholder = this.doPlaceholder.bind(this);
-  this.cleanupFiles = this.cleanupFiles.bind(this);
+  this.loopAssets = this.loopAssets.bind(this);
   this.replaceAsset = this.replaceAsset.bind(this);
+  this.replaceChunk = this.replaceChunk.bind(this);
+  this.cleanupFiles = this.cleanupFiles.bind(this);
   this.populateRegex = this.populateRegex.bind(this);
   this.deleteObsoleteFile = this.deleteObsoleteFile.bind(this);
-  this.loopAssets = this.loopAssets.bind(this);
   this.doCallback = this.doCallback.bind(this);
 
   opts = opts || {};
@@ -50,6 +51,7 @@ function WebpackGitHash(opts) {
   }
 
   // Config filled in later
+  this.hashedAssets = {};
   this.updated = {};
   this.deletedFiles = [];
   this.stats = null;
@@ -63,9 +65,8 @@ WebpackGitHash.prototype.deleteObsoleteFile = function(file) {
 
   for (var i = 0; i < regexKeys.length; i++) {
     var currentRegex = this.regex[regexKeys[i]];
-    var testPath = file.path;
 
-    if (currentRegex.test(testPath)) {
+    if (currentRegex.test(file.path)) {
       fs.unlink(file.path, function(err) {
         if (err) {
           console.log(err);
@@ -81,12 +82,24 @@ WebpackGitHash.prototype.deleteObsoleteFile = function(file) {
  * Add a regex for a particular asset
  */
 WebpackGitHash.prototype.populateRegex = function(assetName) {
-  // Sourcemap extension is included in regex
-  assetName = assetName.replace(/\.map$/, '');
+  if (
+    assetName.indexOf(this.placeholder) !== -1 ||
+    assetName.indexOf(this.skipHash) !== -1
+  ) {
 
-  // Add regex only if it doesn't already exist in cache
-  if (!this.regex.hasOwnProperty(assetName)) {
-    this.regex[assetName] = this.buildRegex(assetName, this.skipHash);
+    // Sourcemap extension is included in regex
+    assetName = assetName.replace(/\.map$/, '');
+
+    // Add regex only if it doesn't already exist in cache
+    if (!this.regex.hasOwnProperty(assetName)) {
+      this.regex[assetName] = this.buildRegex(assetName, this.skipHash);
+    }
+
+    // We've verified this is a hashed asset, so notify user
+    console.log('WebpackGitHash: hash added to ' + assetName);
+  } else {
+    // This is an unhashed asset
+    console.log('WebpackGitHash: skipped ' + assetName);
   }
 }
 
@@ -104,8 +117,16 @@ WebpackGitHash.prototype.cleanupFiles = function() {
 /**
  * Loop through assets, replace placeholder, and generate regex
  */
-WebpackGitHash.prototype.replaceAsset = function(compilation, assetName) {
-  var hashedAssetName = this.doPlaceholder(assetName);
+WebpackGitHash.prototype.replaceAsset = function(compilation, assetName, hashedAssetName) {
+  compilation.assets[hashedAssetName] = compilation.assets[assetName];
+  delete compilation.assets[assetName];
+}
+
+/**
+ * Loop through assets, replace placeholder, and generate regex
+ */
+WebpackGitHash.prototype.replaceChunk = function(compilation, assetName, hashedAssetName) {
+  console.log(hashedAssetName);
 
   for (var i = 0; i < compilation.chunks.length; i++) {
     var chunk = compilation.chunks[i];
@@ -118,17 +139,6 @@ WebpackGitHash.prototype.replaceAsset = function(compilation, assetName) {
       }
     };
   };
-
-  if (hashedAssetName) {
-    compilation.assets[hashedAssetName] = compilation.assets[assetName];
-    delete compilation.assets[assetName];
-
-    console.log('WebpackGitHash: hash added to ' + assetName);
-
-    this.populateRegex(assetName);
-  } else {
-    console.log('WebpackGitHash: skipped ' + assetName);
-  }
 }
 
 /**
@@ -159,8 +169,9 @@ WebpackGitHash.prototype.buildRegex = function(template, hash) {
   // '\\w+-chunk.1234567.js' -> '\\w+-chunk\\.1234567\\.js'
   regex = regex.replace(/\./g, '\\.');
 
-  // replace hash
+  // replace hash and placeholder
   // '\\w+-chunk\\.1234567\\.min\\.js' -> '\\w+-chunk\\.(?!1234567)\\w{7}\\.min\\.js'
+  regex = regex.replace(this.skipHash, '(?!' + hash + ')\\w{' + hash.length + '}');
   regex = regex.replace(this.placeholder, '(?!' + hash + ')\\w{' + hash.length + '}');
 
   // remove sourcemap extension, use in regex instead
@@ -179,9 +190,6 @@ WebpackGitHash.prototype.buildRegex = function(template, hash) {
  */
 WebpackGitHash.prototype.doPlaceholder = function(original) {
   var newString = original.replace(this.placeholder, this.skipHash);
-  if (newString === original) {
-    return false;
-  }
   return newString;
 }
 
@@ -191,10 +199,26 @@ WebpackGitHash.prototype.doPlaceholder = function(original) {
 WebpackGitHash.prototype.loopAssets = function(compilation, callback) {
   var assetNames = Object.keys(compilation.assets);
 
+  // Replace hashed asset names in compilation assets object
   for (var i = 0; i < assetNames.length; i++) {
-    this.replaceAsset(compilation, assetNames[i]);
+    var assetName = assetNames[i];
+    var hashedAssetName = this.hashedAssets[assetName] ?
+      this.hashedAssets[assetName] :
+      this.doPlaceholder(assetName);
+
+    // Check if file should be marked for future deletion
+    this.populateRegex(assetName);
+
+    // Replace placeholder in skipped files
+    // (often in extract-text-webpack-plugin)
+    if (assetName !== hashedAssetName) {
+      this.replaceAsset(compilation, assetName, hashedAssetName);
+      this.replaceChunk(compilation, assetName, hashedAssetName);
+      this.hashedAssets[assetName] = hashedAssetName;
+    }
   }
 
+  // Cleanup old hashed files
   if (this.cleanup) {
     this.cleanupFiles();
   }
@@ -207,6 +231,14 @@ WebpackGitHash.prototype.loopAssets = function(compilation, callback) {
  * Hook into webpack plugin architecture
  */
 WebpackGitHash.prototype.apply = function(compiler) {
+  // Replace placeholder in filename and chunkfilename
+  compiler.options.output.filename = this.doPlaceholder(
+    compiler.options.output.filename
+  );
+
+  compiler.options.output.chunkFilename = this.doPlaceholder(
+    compiler.options.output.chunkFilename
+  );
 
   if (!this.outputPath) {
     this.outputPath = compiler.options.output.path;

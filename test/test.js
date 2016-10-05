@@ -3,9 +3,8 @@
  */
 
 var expect = require('chai').expect;
-var fs = require('fs');
+var fs = require('fs-extra');
 var path = require('path');
-var rimraf = require('rimraf');
 var WebPackGitHash = require('../');
 
 describe('webpack-git-hash test suite', function() {
@@ -17,7 +16,7 @@ describe('webpack-git-hash test suite', function() {
   });
 
   after(function() {
-    rimraf.sync(testTmpDir);
+    fs.removeSync(testTmpDir);
   });
 
   it('should be a function', function() {
@@ -49,13 +48,34 @@ describe('webpack-git-hash test suite', function() {
     expect(callbackResult).to.equal('1234');
   });
 
-  it('should cleanup files not matching the supplied hash', function() {
-    // Create some dummy files
-    ['abcdefg', 'hijklmn', '1234567', '890wxyz'].forEach(function(hash) {
-      var filename = 'file-' + hash + '.min.js';
-      fs.writeFileSync(path.join(testTmpDir, filename), 'temp file', 'utf8');
+  it('replace placeholder with hash and generate regex', function() {
+    // Set up webpack-git-hash
+    var test = new WebPackGitHash({
+      skipHash: 'abcdefg',
+      cleanup: true,
+      outputPath: testTmpDir,
     });
+    var filename = 'file.' + test.placeholder + '.min.js';
+    var oldFilename = 'file.1234567.min.js';
+    var compilation = {
+      assets: {},
+      chunks: {
+        files: [filename],
+      },
+    };
 
+    compilation.assets[filename] = 'test';
+
+    // Cleanup files and test the result
+    var replacedFilename = test.replaceAsset(compilation, filename);
+    expect(test.regex).to.have.property(filename);
+    expect(test.regex[filename].test(filename)).to.equal(false);
+    expect(test.regex[filename].test(oldFilename)).to.equal(true);
+    expect(compilation.assets).to.have.property('file.abcdefg.min.js').and.to.equal('test');
+  });
+
+  it('should cleanup files not matching the supplied hash', function() {
+    var filenames = [];
     // Set up webpack-git-hash
     var test = new WebPackGitHash({
       skipHash: 'abcdefg',
@@ -64,6 +84,13 @@ describe('webpack-git-hash test suite', function() {
       regex: {
         filename: /file-(?!abcdefg)\w{7}\.min\.js/
       }
+    });
+
+    // Create some dummy files
+    ['abcdefg', 'hijklmn', '1234567', '890wxyz'].forEach(function(hash) {
+      var filename = 'file-' + hash + '.min.js';
+      filenames.push(filename);
+      fs.writeFileSync(path.join(testTmpDir, filename), 'temp file', 'utf8');
     });
 
     // Cleanup files and test the result
@@ -83,23 +110,29 @@ describe('webpack-git-hash test suite', function() {
 
   it('should call the callback function', function() {
     var testVar = 0;
-    function testCallback() {
+    var testCallback = function() {
       testVar++;
     };
+    // Create tester and trigger the callback
+    var test = new WebPackGitHash({
+      callback: testCallback
+    });
+    // Compiler
     var mockCompiler = {
       options: {
         output: false
       },
+      assets: {
+        'filename.min.js': 'test',
+      },
       plugin: function(evt, callback) {
-        callback();
+        if ('done' === evt) {
+          callback();
+        }
       }
     };
 
-    // Create tester and trigger the callback
-    var testCleanup = new WebPackGitHash({
-      callback: testCallback
-    });
-    testCleanup.apply(mockCompiler);
+    test.apply(mockCompiler);
     expect(testVar).to.equal(1);
   });
 

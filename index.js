@@ -29,6 +29,9 @@ function WebpackGitHash(opts) {
     this.doCallback = this.doCallback.bind(this);
   }
 
+  // Optional cwd to execute git command
+  this.cwd = opts.cwd || null;
+
   // Can specify a specific hash/version
   if (opts.skipHash) {
     this.skipHash = opts.skipHash;
@@ -108,7 +111,10 @@ WebpackGitHash.prototype.cleanupFiles = function(stats) {
  * Get hash of last git commit
  */
 WebpackGitHash.prototype.getSkipHash = function(length) {
-  var skipHash = child_process.execSync('git rev-parse --short=' + length + ' HEAD', { encoding: 'utf8' });
+  var skipHash = child_process.execSync('git rev-parse --short=' + length + ' HEAD', {
+    encoding: 'utf8',
+    cwd: this.cwd
+  });
   return skipHash.trim();
 }
 

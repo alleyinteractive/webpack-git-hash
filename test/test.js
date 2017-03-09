@@ -30,6 +30,7 @@ describe('webpack-git-hash test suite', function() {
     expect(test.cleanup).to.equal(false);
     expect(test.hashLength).to.equal(test.skipHash.length);
     expect(test.hashLength).to.equal(7);
+    expect(test.cwd).to.equal(null);
   });
 
   it('should set up custom options correctly', function() {
@@ -38,18 +39,20 @@ describe('webpack-git-hash test suite', function() {
       placeholder: '[custom]',
       cleanup: true,
       skipHash: '1234',
-      callback: function(hash) { callbackResult = hash; }
+      callback: function(hash) { callbackResult = hash; },
+      cwd: '../..'
     });
     expect(test.placeholder).to.equal('[custom]');
     expect(test.cleanup).to.equal(true);
     expect(test.skipHash).to.equal('1234');
     expect(test.hashLength).to.equal(test.skipHash.length);
     expect(test.hashLength).to.equal(4);
+    expect(test.cwd).to.equal('../..');
     test.doCallback()
     expect(callbackResult).to.equal('1234');
   });
 
-  it('should cleanup files not matching the supplied hash', function() {
+  it('should cleanup files not matching the supplied hash', function(done) {
     // Create some dummy files
     ['abcdefg', 'hijklmn', '1234567', '890wxyz'].forEach(function(hash) {
       var filename = 'file-' + hash + '.min.js';
@@ -68,16 +71,19 @@ describe('webpack-git-hash test suite', function() {
 
     // Cleanup files and test the result
     test.cleanupFiles();
+
     setTimeout(function() {
       // Only the file that matched the hash should still be there
       testTmpDirContents = fs.readdirSync(testTmpDir);
-      expect(testTmpDirContents.toString()).to.equal('.,..,file-abcdefg.min.js');
+      expect(testTmpDirContents.toString()).to.equal('file-abcdefg.min.js');
 
       // Files not matching the supplied hash should be in deletedFiles
       expect(test.deletedFiles.length).to.equal(3);
-      expect(test.deletedFiles[0]).to.equal('file-hijklmn.min.js');
-      expect(test.deletedFiles[1]).to.equal('file-1234567.min.js');
-      expect(test.deletedFiles[2]).to.equal('file-890wxyz.min.js');
+      expect(test.deletedFiles).to.contain('file-hijklmn.min.js');
+      expect(test.deletedFiles).to.contain('file-1234567.min.js');
+      expect(test.deletedFiles).to.contain('file-890wxyz.min.js');
+
+      done();
     }, 500);
   });
 

@@ -111,7 +111,7 @@ WebpackGitHash.prototype.cleanupFiles = function(stats) {
  * Get hash of last git commit
  */
 WebpackGitHash.prototype.getSkipHash = function(length) {
-  var skipHash = child_process.execSync('git rev-parse --short=' + length + ' HEAD', {
+  var skipHash = child_process.execSync('git describe --always --abbrev=' + length, {
     encoding: 'utf8',
     cwd: this.cwd
   });
